@@ -9,7 +9,7 @@
   "directories": {
     "test": "test"
   },
-  "scripts": {
+    "scripts": {
     "test": "jest",
     "format": "prettier --write ."
   },

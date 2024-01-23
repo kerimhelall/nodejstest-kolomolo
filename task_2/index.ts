@@ -1,20 +1,54 @@
+// index.ts
+
 import { authorized } from "./src/authorized";
 import { updateResource, getResource } from "./src/manageResource";
 import type { APIGatewayEvent } from "aws-lambda";
 
-export const handler = async function (event: Partial<APIGatewayEvent>) {
+interface Response {
+  statusCode: number;
+  body: Object;
+}
+//instead of this type we can use APIGatewayProxyResult from aws-lambda but the body and tests are implemented that its an object and not string
+
+const validateRequest = (userId: string | undefined, resourceId: string | undefined, action: string | undefined): Response | null => {
+  if (userId === undefined || resourceId === undefined || action === undefined || (action !== "GET" && action !== "PATCH")) {
+    return { statusCode: 400, body: { error: "Invalid request parameters" } };
+  }
+  return null;
+};
+
+export const handler = async function (event: Partial<APIGatewayEvent>): Promise<Response> {
+  const { userId, resourceId } = event.pathParameters!;
+  const action = event.httpMethod as "GET" | "PATCH";
+  const validationError = validateRequest(userId, resourceId, action);
+  if (validationError) {
+    return validationError;
+  }
+
+
   try {
-    const { userId, resourceId } = event.pathParameters!;
-    const action = event.httpMethod; // Assume the value is either GET or PATCH
+    // Authorize user access to the resource
+    const authResult = await authorized(userId!, resourceId!, action);
 
-    // TODO: authorize user access to the resource
-    // write it in file src/authorize.ts and import to use here
+    if (!authResult.authorized) {
+      return { statusCode: 403, body: JSON.stringify({ error: "Unauthorized access" }) };
+    }
 
-    // TODO: return value from resource or update it
-    // write it in file src/manageResource.ts and import to use here
+    // Return value from resource or update it based on the action
+    let result;
 
-    return { statusCode: 200, body: JSON.stringify({}) };
+    if (action === "GET") {
+      result = await getResource(resourceId!);
+    } else if (action === "PATCH") {
+      if (authResult.groupId === undefined) {
+        return { statusCode: 500, body: JSON.stringify({ error: "Group ID not available for update" }) };
+      }
+      result = await updateResource(resourceId!, authResult.groupId);
+    }
+
+    return { statusCode: 200, body: { value: result } };
   } catch (error) {
-    return { statusCode: 500, body: JSON.stringify({ error }) };
+    console.error("Error processing request:", error);
+    return { statusCode: 500, body: JSON.stringify({ error: "Internal server error" }) };
   }
 };

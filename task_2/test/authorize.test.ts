@@ -90,7 +90,7 @@ test("Allowed", async () => {
     .promise();
 
   const { statusCode, body } = await handler({
-    pathParameters: { userId: "123", resourceId: "1" },
+    pathParameters: { userId: "1", resourceId: "1" },
     httpMethod: "GET",
   });
 
@@ -98,6 +98,43 @@ test("Allowed", async () => {
   expect(body).toStrictEqual({ value: 1 });
 });
 
-test("Allowed", async () => {
-  // TODO: write test checking if correct value is returned after update
+test("Allowed - Update", async () => {
+  await dbClient
+    .put({
+      TableName: "groups",
+      Item: {
+        id: "1",
+      },
+    })
+    .promise();
+
+  await dbClient
+    .put({
+      TableName: "users",
+      Item: {
+        id: "1",
+        group_id: "1",
+        role: "admin",
+      },
+    })
+    .promise();
+
+  await dbClient
+    .put({
+      TableName: "resources",
+      Item: {
+        id: "1",
+        group_id: "1",
+        value: 1,
+      },
+    })
+    .promise();
+
+  const { statusCode, body } = await handler({
+    pathParameters: { userId: "1", resourceId: "1" },
+    httpMethod: "PATCH",
+  });
+
+  expect(statusCode).toBe(200);
+  expect(body).toStrictEqual({ value: 2 }); // Assuming the update increments the value by 1
 });
